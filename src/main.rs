@@ -1,6 +1,8 @@
+use std::time::Instant;
+
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::nonogram::{Board, Column, ColumnInfo, ColumnInfos, PaintedBoard, PaintedColumn};
+use crate::nonogram::{Board, Column, PaintedBoard, PaintedColumn};
 
 mod nonogram;
 
@@ -18,7 +20,6 @@ fn get_mean_rate_painting_columns(
         let info = painted_column.get_info();
         let mut column = Column::new_ramdom_from(&painted_column, rng, q);
         let new_column = column.try_fit(&info).unwrap();
-        println!("{:?}({:?}) = {:?}", info, column, new_column);
 
         sum += new_column.painted_rate();
 
@@ -55,10 +56,16 @@ fn get_mean_rate_painting_nonogram_board(
 }
 
 fn main() {
-    let mut rng = StdRng::seed_from_u64(5);
-
-    match get_mean_rate_painting_nonogram_board(&mut rng, 15, 0.45, 200) {
+    let mut rng = StdRng::seed_from_u64(9);
+    let now = Instant::now();
+    match get_mean_rate_painting_columns(&mut rng, 15, 0.5, 0.2, 200) {
         Ok(mean) => println!("Média da completude: {:.2}%", 100.0 * mean),
         Err(_) => println!("Deu errado no testes da média"),
     }
+    match get_mean_rate_painting_nonogram_board(&mut rng, 15, 0.5, 200) {
+        Ok(mean) => println!("Média da completude: {:.2}%", 100.0 * mean),
+        Err(_) => println!("Deu errado no testes da média"),
+    }
+    let elapsed_time = now.elapsed();
+    println!("Time: {:} seconds.", elapsed_time.as_secs());
 }

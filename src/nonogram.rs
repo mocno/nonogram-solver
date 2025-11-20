@@ -1,10 +1,14 @@
 use std::{
     fmt::Debug,
-    ops::{Add, BitOr, Range},
-    slice, vec,
+    ops::{Add, Range},
+    vec,
 };
 
 use rand::Rng;
+
+const BLACK_COLOR: &str = "░";
+const WHITE_COLOR: &str = "█";
+const UNKNOWN_COLOR: &str = ".";
 
 pub struct PaintedBoard {
     width: usize,
@@ -23,39 +27,40 @@ impl PaintedBoard {
     }
 }
 
-const BLACK_COLOR: &str = "░░";
-const WHITE_COLOR: &str = "██";
-const UNKNOWN_COLOR: &str = "..";
+impl PaintedBoard {
+    pub fn get_row(&self, j: usize) -> PaintedColumn {
+        let cells = self.cells[j * self.width..(j + 1) * self.width].to_vec();
+
+        PaintedColumn { cells }
+    }
+
+    pub fn get_column(&self, i: usize) -> PaintedColumn {
+        let cells = self.cells[i..self.height * self.width]
+            .iter()
+            .step_by(self.width)
+            .copied()
+            .collect();
+        PaintedColumn { cells }
+    }
+
+    pub fn get_column_infos(&self) -> ColumnInfos {
+        let columns = (0..self.width)
+            .map(|i| self.get_column(i).get_info())
+            .collect();
+        let rows = (0..self.height)
+            .map(|j| self.get_row(j).get_info())
+            .collect();
+        ColumnInfos::new(columns, rows)
+    }
+}
 
 impl Debug for PaintedBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let column_infos = self.get_column_infos();
-
-        let max_size_rows: usize = column_infos
-            .rows
-            .iter()
-            .map(|row| {
-                row.info
-                    .iter()
-                    .map(|&value| value.ilog10() + 2)
-                    .sum::<u32>()
-            })
-            .max()
-            .unwrap() as usize;
-
         for k in 0..self.width * self.height {
             if k % self.width == 0 {
                 if k != 0 {
                     write!(f, "\n")?;
                 }
-
-                let row = column_infos.rows[k / self.width]
-                    .info
-                    .iter()
-                    .map(|&id| id.to_string() + " ")
-                    .collect::<String>();
-
-                write!(f, "{row:>max_size_rows$}", max_size_rows = max_size_rows)?;
             }
 
             if self.cells[k] {
@@ -77,23 +82,6 @@ impl PaintedColumn {
         let cells: Vec<bool> = (0..lenght).map(|_| rng.random_bool(p)).collect();
 
         Self { cells }
-    }
-}
-
-impl PaintedBoard {
-    pub fn get_row(&self, j: usize) -> PaintedColumn {
-        let cells = self.cells[j * self.width..(j + 1) * self.width].to_vec();
-
-        PaintedColumn { cells }
-    }
-
-    pub fn get_column(&self, i: usize) -> PaintedColumn {
-        let cells = self.cells[i..self.height * self.width]
-            .iter()
-            .step_by(self.width)
-            .copied()
-            .collect();
-        PaintedColumn { cells }
     }
 }
 
@@ -152,18 +140,6 @@ impl ColumnInfos {
     }
 }
 
-impl PaintedBoard {
-    pub fn get_column_infos(&self) -> ColumnInfos {
-        let columns = (0..self.width)
-            .map(|i| self.get_column(i).get_info())
-            .collect();
-        let rows = (0..self.height)
-            .map(|j| self.get_row(j).get_info())
-            .collect();
-        ColumnInfos { columns, rows }
-    }
-}
-
 pub struct Board {
     width: usize,
     height: usize,
@@ -196,6 +172,7 @@ impl PaintedBoard {
     }
 }
 
+#[derive(Clone)]
 pub struct Column {
     cells: Vec<Option<bool>>,
 }
@@ -312,164 +289,6 @@ impl Debug for Column {
     }
 }
 
-// impl Column {
-//     fn paint_by_info(&mut self, info: &ColumnInfo) {
-//         assert!(
-//             self.cells.len() + 1 >= info.info.iter().sum::<usize>() + info.info.len(),
-//             "{:?} {:?}",
-//             self.cells,
-//             info.info
-//         );
-//         let width = self.cells.len() + 1;
-//         let space_used = info.info.iter().sum::<usize>() + info.info.len();
-//         assert!(width >= space_used);
-//         let remove = width - space_used;
-//         let mut index = 0;
-
-//         if info.info.len() == 0 {
-//             for index in 0..self.cells.len() {
-//                 self.cells[index] = Some(false);
-//             }
-//         } else {
-//             for &num in &info.info {
-//                 for i in remove..num {
-//                     self.cells[index + i] = Some(true);
-//                 }
-
-//                 index += num + 1;
-
-//                 if remove == 0 && index < width {
-//                     self.cells[index - 1] = Some(false);
-//                 }
-//             }
-//         }
-//     }
-
-//     fn map_on_range(&mut self, range: Range<usize>, map: impl Fn(&mut Column)) {
-//         let mut column = Column {
-//             cells: self.cells[range.clone()].to_vec(),
-//         };
-//         map(&mut column);
-//         for i in range.clone() {
-//             self.cells[i] = column.cells[i - range.start];
-//         }
-//     }
-
-//     fn simplify(
-//         &mut self,
-//         info: &ColumnInfo,
-//         range: Range<usize>,
-//     ) -> Option<(Range<usize>, ColumnInfo)> {
-//         let mut new_info = info.info.clone();
-//         let mut start_index = range.start;
-//         let mut end_index = range.end;
-
-//         while start_index < end_index {
-//             let Some(value) = self.cells[start_index] else {
-//                 break;
-//             };
-
-//             start_index += 1;
-
-//             if value {
-//                 let quant = new_info.remove(0);
-//                 for i in start_index..start_index + quant - 1 {
-//                     self.cells[i] = Some(true);
-//                 }
-//                 start_index += quant - 1;
-//                 if start_index < end_index {
-//                     self.cells[start_index] = Some(false);
-//                     start_index += 1;
-//                 }
-//             }
-//         }
-
-//         if start_index >= end_index {
-//             return None;
-//         }
-
-//         while start_index < end_index {
-//             let Some(value) = self.cells[end_index - 1] else {
-//                 break;
-//             };
-
-//             end_index -= 1;
-
-//             if value {
-//                 let quant = new_info.pop().unwrap() - 1;
-//                 for i in end_index - quant..end_index {
-//                     self.cells[i] = Some(true);
-//                 }
-//                 end_index -= quant;
-//                 if end_index < start_index {
-//                     end_index -= 1;
-//                     self.cells[end_index] = Some(false);
-//                 }
-//             }
-//         }
-
-//         if end_index <= start_index {
-//             return None;
-//         }
-
-//         let new_info = ColumnInfo { info: new_info };
-
-//         Some((start_index..end_index, new_info))
-//     }
-
-//     pub fn try_paint(&mut self, info: &ColumnInfo) {
-//         let Some((range, new_info)) = self.simplify(info, 0..self.cells.len()) else {
-//             return;
-//         };
-
-//         self.map_on_range(range.clone(), |column| {
-//             column.paint_by_info(&new_info);
-//         });
-
-//         let Some((range, new_info)) = self.simplify(&new_info, range) else {
-//             return;
-//         };
-
-//         for i in range.clone() {
-//             if let Some(value) = self.cells[i] {
-//                 if value {
-//                 } else {
-//                     if new_info.info[0] > i {
-//                         for j in range.start..i {
-//                             self.cells[j] = Some(false);
-//                         }
-//                         self.map_on_range(i + 1..range.end, |column| {
-//                             column.try_paint(&new_info);
-//                         });
-//                         return;
-//                     }
-//                 }
-//                 break;
-//             }
-//         }
-
-//         for i in range.clone().rev() {
-//             if self.cells[i].is_some() {
-//                 if self.cells[i] == Some(false) {
-//                     if new_info.info[new_info.info.len() - 1] > range.end - i - 1 {
-//                         for j in i..range.end {
-//                             self.cells[j] = Some(false);
-//                         }
-//                         self.map_on_range(range.start..i, |column| {
-//                             column.try_paint(&new_info);
-//                         });
-//                         return;
-//                     }
-//                 }
-//                 break;
-//             }
-//         }
-//         self.map_on_range(range, |column| {
-//             column.paint_by_info(&new_info);
-//         });
-//     }
-// }
-
 impl Board {
     pub fn try_paint(&mut self) {
         let mut current_hash = self.width * self.height;
@@ -508,116 +327,98 @@ impl Board {
 }
 
 impl Column {
-    pub fn full(lenght: usize, value: Option<bool>) -> Self {
+    fn full(lenght: usize, value: Option<bool>) -> Self {
         Column {
             cells: vec![value; lenght],
         }
     }
 
-    pub fn slice(&self, range: Range<usize>) -> Self {
+    fn slice(&self, range: Range<usize>) -> Self {
         Column {
             cells: self.cells[range].iter().cloned().collect(),
         }
     }
 
-    pub fn fit_in(&self, other: &Column) -> bool {
+    fn fit_in(&self, other: &Column) -> bool {
+        assert_eq!(self.cells.len(), other.cells.len());
         self.cells
             .iter()
             .zip(other.cells.iter())
             .all(|(a, b)| a.is_none() || b.is_none() || a.unwrap() == b.unwrap())
     }
 
-    pub fn try_paint_using_pd(&mut self, info: &ColumnInfo) {
-        self.try_fit(info);
-
-        println!("{:?}({:?})", info.info, self)
+    fn add_info(self, column: &mut Option<Column>) {
+        if let Some(column) = column {
+            for i in 0..column.cells.len() {
+                if self.cells[i] != column.cells[i] {
+                    column.cells[i] = None;
+                }
+            }
+        } else {
+            *column = Some(self.clone());
+        }
     }
 
     pub fn try_fit(&mut self, info: &ColumnInfo) -> Option<Column> {
         if info.info.len() == 0 {
-            Some(Column::full(self.cells.len(), Some(false)))
-        } else if info.info.len() == 1 {
-            let num = info.info[0];
-
-            if num > self.cells.len() {
-                return None;
-            }
-
-            let mut final_column = None;
-
-            for i in 0..=self.cells.len() - num {
-                let column = Column::full(i, Some(false))
-                    + Column::full(num, Some(true))
-                    + Column::full(self.cells.len() - num - i, Some(false));
-                if column.fit_in(self) {
-                    if final_column.is_none() {
-                        final_column = Some(column);
-                    } else {
-                        final_column = Some(final_column.unwrap() | column);
-                    }
-                }
-            }
-
-            final_column
-        } else {
-            let num = info.info[0];
-
-            let mut final_column = None;
-
-            if self.cells.len() < num {
-                return None;
-            }
-
-            for i in 0..=self.cells.len() - num {
-                if self.cells.len() >= num + 1 + i {
-                    let others_column =
-                        self.slice(i + num + 1..self.cells.len())
-                            .try_fit(&ColumnInfo {
-                                info: info.info[1..info.info.len()].iter().cloned().collect(),
-                            });
-
-                    if let Some(others_column) = others_column {
-                        let column = Column::full(i, Some(false))
-                            + Column::full(num, Some(true))
-                            + Column::full(1, Some(false))
-                            + others_column;
-                        if column.fit_in(self) {
-                            if final_column.is_none() {
-                                final_column = Some(column);
-                            } else {
-                                final_column = Some(final_column.unwrap() | column);
-                            }
-                        }
-                    }
-                }
-            }
-
-            final_column
+            return Some(Column::full(self.cells.len(), Some(false)));
         }
+
+        let mut pn: Vec<Option<Column>> = (0..self.cells.len()).map(|_| None).collect();
+
+        let num = info.info[0];
+        for j in num - 1..self.cells.len() {
+            let mut final_column = None;
+
+            for k in 0..=j + 1 - num {
+                let column = Column::full(j + 1 - k - num, Some(false))
+                    + Column::full(num, Some(true))
+                    + Column::full(k, Some(false));
+
+                if column.fit_in(&self.slice(0..j + 1)) {
+                    column.add_info(&mut final_column);
+                }
+            }
+
+            pn[j] = final_column;
+        }
+
+        let mut space = info.info[0] - 1;
+        for i in 1..info.info.len() {
+            let num = info.info[i];
+            space += num + 1;
+
+            for j in (space..self.cells.len()).rev() {
+                let mut final_column = None;
+
+                for k in 0..=j - space {
+                    let Some(others_column) = pn[j - num - k - 1].clone() else {
+                        continue;
+                    };
+                    let column = others_column
+                        + Column::full(1, Some(false))
+                        + Column::full(num, Some(true))
+                        + Column::full(k, Some(false));
+
+                    if column.fit_in(&self.slice(0..j + 1)) {
+                        column.add_info(&mut final_column);
+                    }
+                }
+
+                pn[j] = final_column;
+            }
+        }
+
+        pn[self.cells.len() - 1].clone()
     }
 }
 
 impl Add for Column {
     type Output = Column;
-    fn add(self, rhs: Self) -> Self::Output {
-        let cells = self.cells.iter().chain(rhs.cells.iter()).cloned().collect();
-        Column { cells }
-    }
-}
 
-impl BitOr for Column {
-    type Output = Column;
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Column {
-            cells: self
-                .cells
-                .iter()
-                .zip(rhs.cells.iter())
-                .map(|(a, b)| match (a, b) {
-                    (Some(v1), Some(v2)) if v1 == v2 => Some(*v1),
-                    _ => None,
-                })
-                .collect(),
-        }
+    fn add(self, rhs: Self) -> Self::Output {
+        let cells = [self.cells.as_slice(), rhs.cells.as_slice()].concat();
+
+        Column { cells }
     }
 }
