@@ -364,35 +364,39 @@ impl Column {
             return Some(Column::full(self.cells.len(), Some(false)));
         }
 
-        let mut pn: Vec<Option<Column>> = (0..self.cells.len()).map(|_| None).collect();
+        let mut pn: Vec<Option<Column>> = (0..=self.cells.len())
+            .map(|i| Some(Column::full(self.cells.len() - i, Some(false))))
+            .collect();
 
-        let num = info.info[0];
-        for j in num - 1..self.cells.len() {
-            let mut final_column = None;
+        let mut space = self.cells.len() + 1;
 
-            for k in 0..=j + 1 - num {
-                let column = Column::full(j + 1 - k - num, Some(false))
-                    + Column::full(num, Some(true))
-                    + Column::full(k, Some(false));
-
-                if column.fit_in(&self.slice(0..j + 1)) {
-                    column.add_info(&mut final_column);
-                }
-            }
-
-            pn[j] = final_column;
-        }
-
-        let mut space = info.info[0] - 1;
-        for i in 1..info.info.len() {
+        for i in 0..info.info.len() {
             let num = info.info[i];
-            space += num + 1;
+            space -= num + 1;
 
-            for j in (space..self.cells.len()).rev() {
-                let mut final_column = None;
+            for j in 0..=space {
+                let mut final_column = if i == 0 {
+                    let column =
+                        Column::full(num, Some(true)) + Column::full(space - j, Some(false));
 
-                for k in 0..=j - space {
-                    let Some(others_column) = pn[j - num - k - 1].clone() else {
+                    column
+                        .fit_in(&self.slice(0..self.cells.len() - j))
+                        .then_some(column)
+                } else if let Some(others_column) = pn[num + space + 1].clone() {
+                    let column = others_column
+                        + Column::full(1, Some(false))
+                        + Column::full(num, Some(true))
+                        + Column::full(space - j, Some(false));
+
+                    column
+                        .fit_in(&self.slice(0..self.cells.len() - j))
+                        .then_some(column)
+                } else {
+                    None
+                };
+
+                for k in 0..space - j {
+                    let Some(others_column) = pn[j + num + k + 1].clone() else {
                         continue;
                     };
                     let column = others_column
@@ -400,7 +404,7 @@ impl Column {
                         + Column::full(num, Some(true))
                         + Column::full(k, Some(false));
 
-                    if column.fit_in(&self.slice(0..j + 1)) {
+                    if column.fit_in(&self.slice(0..self.cells.len() - j)) {
                         column.add_info(&mut final_column);
                     }
                 }
@@ -409,7 +413,7 @@ impl Column {
             }
         }
 
-        pn[self.cells.len() - 1].clone()
+        pn[0].clone()
     }
 }
 
